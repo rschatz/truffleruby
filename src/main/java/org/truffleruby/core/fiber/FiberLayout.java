@@ -51,6 +51,7 @@ public interface FiberLayout extends BasicObjectLayout {
     BlockingQueue<FiberManager.FiberMessage> getMessageQueue(DynamicObject object);
 
     DynamicObject getRubyThread(DynamicObject object);
+    void setRubyThread(DynamicObject object, DynamicObject value);
 
     DynamicObject getLastResumedByFiber(DynamicObject object);
     void setLastResumedByFiber(DynamicObject object, DynamicObject value);

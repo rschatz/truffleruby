@@ -361,7 +361,7 @@ public class ThreadManager {
 
     public void initializeValuesBasedOnCurrentJavaThread(DynamicObject rubyThread, long pThreadID) {
         assert RubyGuards.isRubyThread(rubyThread);
-        currentThread.set(rubyThread);
+        setCurrentThread(rubyThread);
 
         final int SIGVTALRM = jnr.constants.platform.Signal.SIGVTALRM.intValue();
 
@@ -379,6 +379,11 @@ public class ThreadManager {
     @TruffleBoundary
     public DynamicObject getCurrentThread() {
         return currentThread.get();
+    }
+
+    @TruffleBoundary
+    public void setCurrentThread(DynamicObject rubyThread) {
+        currentThread.set(rubyThread);
     }
 
     public synchronized void registerThread(DynamicObject thread) {

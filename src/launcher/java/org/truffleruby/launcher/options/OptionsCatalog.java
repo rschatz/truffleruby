@@ -181,6 +181,11 @@ public class OptionsCatalog {
             "Use a Global Lock when running C extensions",
             null,
             true);
+    public static final BooleanOptionDescription FIBERS_CROSS_THREADS = new BooleanOptionDescription(
+            "ruby.fibers.cross_threads",
+            "Allow Fibers to be resumed across Threads",
+            null,
+            false);
     public static final BooleanOptionDescription TRACE_CALLS = new BooleanOptionDescription(
             "ruby.trace.calls",
             "Support tracing (set_trace_func, TracePoint) of method calls",
@@ -655,6 +660,8 @@ public class OptionsCatalog {
                 return NATIVE_INTERRUPT;
             case "ruby.cexts.lock":
                 return CEXT_LOCK;
+            case "ruby.fibers.cross_threads":
+                return FIBERS_CROSS_THREADS;
             case "ruby.trace.calls":
                 return TRACE_CALLS;
             case "ruby.coverage.global":
@@ -857,6 +864,7 @@ public class OptionsCatalog {
             PLATFORM_USE_JAVA,
             NATIVE_INTERRUPT,
             CEXT_LOCK,
+            FIBERS_CROSS_THREADS,
             TRACE_CALLS,
             COVERAGE_GLOBAL,
             INLINE_JS,

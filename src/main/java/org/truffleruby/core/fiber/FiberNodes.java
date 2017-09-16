@@ -58,6 +58,7 @@ public abstract class FiberNodes {
         protected Object transfer(VirtualFrame frame,
                 DynamicObject currentThread, DynamicObject currentFiber, DynamicObject fiber,
                 FiberOperation operation, Object[] args,
+                @Cached("createBinaryProfile()") ConditionProfile differentThreadProfile,
                 @Cached("create()") BranchProfile errorProfile) {
 
             if (!Layouts.FIBER.getAlive(fiber)) {
@@ -65,12 +66,24 @@ public abstract class FiberNodes {
                 throw new RaiseException(coreExceptions().deadFiberCalledError(this));
             }
 
-            if (Layouts.FIBER.getRubyThread(fiber) != currentThread) {
-                errorProfile.enter();
-                throw new RaiseException(coreExceptions().fiberError("fiber called across threads", this));
+            final DynamicObject fiberThread = Layouts.FIBER.getRubyThread(fiber);
+            final FiberManager fiberManager = Layouts.THREAD.getFiberManager(currentThread);
+
+            if (differentThreadProfile.profile(fiberThread != currentThread)) {
+                if (getContext().getOptions().FIBERS_CROSS_THREADS) {
+                    final FiberManager originalFiberManager = Layouts.THREAD.getFiberManager(fiberThread);
+                    if (originalFiberManager.getRootFiber() == fiber) {
+                        errorProfile.enter();
+                        throw new RaiseException(coreExceptions().fiberError("cannot resume a root fiber across threads", this));
+                    }
+
+                    Layouts.FIBER.setRubyThread(fiber, currentThread);
+                    originalFiberManager.transferFiberToOtherFiberManager(fiber, fiberManager);
+                } else {
+                    throw new RaiseException(coreExceptions().fiberError("fiber called across threads", this));
+                }
             }
 
-            final FiberManager fiberManager = Layouts.THREAD.getFiberManager(currentThread);
             return singleValue(frame, fiberManager.transferControlTo(currentFiber, fiber, operation, args));
         }
 

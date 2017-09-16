@@ -33,6 +33,7 @@ import org.truffleruby.language.objects.ObjectIDOperations;
 
 import java.util.Collections;
 import java.util.Set;
+import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.LinkedBlockingQueue;
@@ -205,7 +206,13 @@ public class FiberManager {
         final FiberMessage message = context.getThreadManager().runUntilResultKeepStatus(null,
                 () -> Layouts.FIBER.getMessageQueue(fiber).take());
 
-        setCurrentFiber(fiber);
+        if (context.getOptions().FIBERS_CROSS_THREADS) {
+            final DynamicObject rubyThread = Layouts.FIBER.getRubyThread(fiber);
+            context.getThreadManager().setCurrentThread(rubyThread);
+            Layouts.THREAD.getFiberManager(rubyThread).setCurrentFiber(fiber);
+        } else {
+            setCurrentFiber(fiber);
+        }
 
         if (message instanceof FiberShutdownMessage) {
             throw new FiberShutdownException();
@@ -213,7 +220,8 @@ public class FiberManager {
             throw ((FiberExceptionMessage) message).getException();
         } else if (message instanceof FiberResumeMessage) {
             final FiberResumeMessage resumeMessage = (FiberResumeMessage) message;
-            assert context.getThreadManager().getCurrentThread() == Layouts.FIBER.getRubyThread(resumeMessage.getSendingFiber());
+            assert context.getOptions().FIBERS_CROSS_THREADS ||
+                    context.getThreadManager().getCurrentThread() == Layouts.FIBER.getRubyThread(resumeMessage.getSendingFiber());
             if (resumeMessage.getOperation() == FiberOperation.RESUME) {
                 Layouts.FIBER.setLastResumedByFiber(fiber, resumeMessage.getSendingFiber());
             }
@@ -265,7 +273,24 @@ public class FiberManager {
         Layouts.FIBER.setThread(fiber, null);
         rubyFiber.remove();
 
+        // Cleanup queue
+        final BlockingQueue<FiberMessage> queue = Layouts.FIBER.getMessageQueue(fiber);
+        FiberMessage message;
+        while ((message = queue.poll()) != null) {
+            if (message instanceof FiberResumeMessage) {
+                FiberResumeMessage resumeMessage = (FiberResumeMessage) message;
+                final RaiseException deadFiber = new RaiseException(context.getCoreExceptions().deadFiberCalledError(null));
+                addToMessageQueue(resumeMessage.getSendingFiber(), new FiberExceptionMessage(deadFiber));
+            }
+        }
+
         Layouts.FIBER.getFinishedLatch(fiber).countDown();
+    }
+
+    @TruffleBoundary
+    public void transferFiberToOtherFiberManager(DynamicObject fiber, FiberManager fiberManager) {
+        runningFibers.remove(fiber);
+        fiberManager.runningFibers.add(fiber);
     }
 
     @TruffleBoundary
