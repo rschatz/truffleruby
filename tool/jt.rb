@@ -550,6 +550,7 @@ module Commands
 
   def rebuild
     clean
+    sh 'rm', '-rf', 'mxbuild'
     mx 'sforceimports'
     build
   end
